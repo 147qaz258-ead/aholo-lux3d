@@ -1,0 +1,20 @@
+# Publish the application and its referenced product specifications only.
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/spatial-creator/
+!/Aether_Studio_Detailed_Requirements_Draft1.0/
+
+# Dependencies, builds, local credentials, runtime state, and test output.
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.runtime/
+test-artifacts/
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db

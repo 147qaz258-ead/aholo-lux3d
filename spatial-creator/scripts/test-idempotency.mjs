@@ -1,0 +1,22 @@
+import { createRequestCache } from "../server/idempotency.mjs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import assert from "node:assert/strict";
+
+const directory = mkdtempSync(join(tmpdir(), "aether-request-test-"));
+const request = { url: "/api/lux3d/text-to-3d", body: { requestId: "idempotency_test_001", prompt: "a test shape" } };
+let calls = 0;
+const remote = async () => { calls++; await new Promise(r=>setTimeout(r,20)); return { taskId: 42 }; };
+const cache = createRequestCache(directory);
+const results = await Promise.all(Array.from({length:10},()=>cache(request,remote)));
+assert.equal(calls,1); assert.ok(results.every(r=>r.taskId===42));
+const afterRestart = createRequestCache(directory);
+assert.deepEqual(await afterRestart(request,remote),{taskId:42}); assert.equal(calls,1);
+await assert.rejects(()=>afterRestart({...request,body:{...request.body,prompt:"another shape"}},remote),e=>e.statusCode===409);
+const uncertain = {...request,body:{...request.body,requestId:"idempotency_uncertain"}};
+await assert.rejects(()=>cache(uncertain,async()=>{throw Error("connection lost after submit");}));
+await assert.rejects(()=>createRequestCache(directory)(uncertain,remote),e=>e.statusCode===409); assert.equal(calls,1);
+mkdirSync("test-artifacts/draft1",{recursive:true});
+writeFileSync("test-artifacts/draft1/idempotency.json",JSON.stringify({ tests: ["10 concurrent requests create one task", "completed request survives restart", "same ID with changed input rejects 409", "uncertain response is not resubmitted after restart"], passed:4, upstreamCalls:calls, mode:"isolated deterministic adapter; no paid provider calls" },null,2));
+console.log("4/4 idempotency tests passed; one upstream invocation");
